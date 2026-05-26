@@ -1,0 +1,1093 @@
+<!DOCTYPE html>
+<html lang="es" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>smartEcoRoute - Gestión de Residuos IoT y Enrutamiento Inteligente</title>
+    <!-- Google Fonts - Plus Jakarta Sans -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS with custom colors -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Alpine.js for interactive state -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+                    },
+                    colors: {
+                        eco: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            200: '#bbf7d0',
+                            300: '#86efac',
+                            400: '#4ade80',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                            800: '#166534',
+                            900: '#14532d',
+                            950: '#052e16',
+                        },
+                        slate: {
+                            850: '#1e293b',
+                            950: '#0f172a',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        [x-cloak] { display: none !important; }
+        
+        /* Truck moving along SVG path path animation */
+        .truck-container {
+            position: absolute;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            animation: moveTruck 12s linear infinite;
+        }
+
+        @keyframes moveTruck {
+            0% { offset-distance: 0%; }
+            100% { offset-distance: 100%; }
+        }
+
+        /* SVG dash animation for active route path */
+        .route-dash {
+            stroke-dasharray: 8 6;
+            animation: dash 30s linear infinite;
+        }
+        @keyframes dash {
+            to {
+                stroke-dashoffset: -1000;
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 font-sans antialiased transition-colors duration-300" x-data="smartEcoRouteApp()">
+
+    <!-- TOAST NOTIFICATIONS -->
+    <div class="fixed bottom-5 right-5 z-[100] pointer-events-none">
+        <div x-show="showToast" 
+             x-transition:enter="transition ease-out duration-300 transform"
+             x-transition:enter-start="opacity-0 translate-y-2 scale-95"
+             x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+             x-transition:leave="transition ease-in duration-200 transform"
+             x-transition:leave-start="opacity-100 translate-y-0 scale-100"
+             x-transition:leave-end="opacity-0 translate-y-2 scale-95"
+             class="bg-slate-900/95 dark:bg-white/95 text-white dark:text-slate-900 px-5 py-3.5 rounded-2xl shadow-2xl flex items-center space-x-3 pointer-events-auto border border-white/10 dark:border-slate-200" 
+             x-cloak>
+            <div class="p-1 bg-eco-500 text-white rounded-xl">
+                <i data-lucide="check" class="w-4 h-4"></i>
+            </div>
+            <span class="text-xs font-bold font-sans" x-text="toastMessage"></span>
+        </div>
+    </div>
+
+    <!-- NAVBAR -->
+    <nav class="sticky top-0 z-40 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md border-b border-slate-100 dark:border-slate-900 shadow-sm transition-colors duration-300">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <!-- Branding -->
+                <div class="flex items-center space-x-2">
+                    <div class="p-2.5 bg-eco-100 dark:bg-eco-950 text-eco-700 dark:text-eco-400 rounded-2xl">
+                        <i data-lucide="leaf" class="w-6 h-6"></i>
+                    </div>
+                    <span class="text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">smart<span class="text-eco-600 dark:text-eco-400 font-semibold">EcoRoute</span></span>
+                </div>
+                <!-- Navigation & Theme Toggle -->
+                <div class="flex items-center space-x-6">
+                    <div class="hidden md:flex items-center space-x-8 font-semibold text-slate-600 dark:text-slate-300">
+                        <a href="#inicio" class="hover:text-eco-600 dark:hover:text-eco-400 transition">Inicio</a>
+                        <a href="#proyecto" class="hover:text-eco-600 dark:hover:text-eco-400 transition">El Proyecto</a>
+                        <a href="#fad" class="hover:text-eco-600 dark:hover:text-eco-400 transition">FAD Juventud</a>
+                    </div>
+                    
+                    <div class="flex items-center space-x-3 pl-4 border-l border-slate-100 dark:border-slate-900">
+                        <!-- Theme Toggle Button -->
+                        <button @click="toggleDarkMode()" class="p-2.5 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-900 rounded-xl transition" title="Cambiar Tema">
+                            <template x-if="!darkMode">
+                                <i data-lucide="moon" class="w-5 h-5"></i>
+                            </template>
+                            <template x-if="darkMode">
+                                <i data-lucide="sun" class="w-5 h-5"></i>
+                            </template>
+                        </button>
+
+                        <a href="#dashboard" class="bg-eco-600 hover:bg-eco-700 dark:bg-eco-600 dark:hover:bg-eco-500 text-white px-5 py-2.5 rounded-xl font-bold transition shadow-sm shadow-eco-600/20 flex items-center space-x-2 text-sm">
+                            <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
+                            <span>Panel de Control</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- SECTION 1: PUBLIC LANDING PAGE -->
+    <main id="inicio">
+        <!-- Hero Section -->
+        <div class="relative overflow-hidden bg-gradient-to-b from-eco-50 via-white to-white dark:from-slate-950 dark:via-slate-950 dark:to-slate-900 py-24 sm:py-32 transition-colors duration-300">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+                <div class="text-center max-w-3xl mx-auto">
+                    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-eco-100 dark:bg-eco-950 text-eco-800 dark:text-eco-400 mb-6">
+                        <span class="w-1.5 h-1.5 rounded-full bg-eco-600 dark:bg-eco-400 animate-pulse"></span>
+                        Propuesta para el Concurso FAD Juventud
+                    </span>
+                    <h1 class="text-4xl sm:text-6xl font-extrabold text-slate-900 dark:text-white tracking-tight mb-6 leading-tight">
+                        Optimizando el futuro urbano con <span class="text-transparent bg-clip-text bg-gradient-to-r from-eco-600 to-eco-500 dark:from-eco-400 dark:to-eco-500">rutas eco-eficientes</span>
+                    </h1>
+                    <p class="text-lg text-slate-600 dark:text-slate-350 mb-10 leading-relaxed">
+                        Transformamos la gestión de residuos urbanos mediante sensores IoT de peso y olor. Reducimos emisiones, ahorramos combustible y garantizamos calles más limpias saltándonos los contenedores vacíos y priorizando los críticos.
+                    </p>
+                    <div class="flex flex-col sm:flex-row justify-center gap-4">
+                        <a href="#dashboard" class="bg-eco-600 hover:bg-eco-700 text-white px-8 py-4 rounded-2xl font-bold transition shadow-lg shadow-eco-600/20 text-center">
+                            Probar Simulador en Vivo
+                        </a>
+                        <a href="#proyecto" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 px-8 py-4 rounded-2xl font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition text-center flex items-center justify-center gap-2">
+                            Saber más <i data-lucide="arrow-down" class="w-4 h-4"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <!-- Decorative background elements -->
+            <div class="absolute top-0 right-0 -translate-y-1/2 translate-x-1/3 w-[600px] h-[600px] bg-eco-100/40 dark:bg-eco-950/20 rounded-full blur-3xl -z-10"></div>
+            <div class="absolute bottom-0 left-0 translate-y-1/3 -translate-x-1/3 w-[400px] h-[400px] bg-eco-50 dark:bg-slate-900/10 rounded-full blur-3xl -z-10"></div>
+        </div>
+
+        <hr class="border-slate-100 dark:border-slate-900 max-w-7xl mx-auto">
+
+        <!-- "Our Project" Section -->
+        <div id="proyecto" class="py-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center max-w-3xl mx-auto mb-16">
+                <h2 class="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight sm:text-4xl mb-4">¿Cómo funciona smartEcoRoute?</h2>
+                <p class="text-slate-600 dark:text-slate-400">Integración tecnológica de vanguardia al servicio de la sostenibilidad municipal.</p>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-8">
+                <!-- Card 1 -->
+                <div class="bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-md transition">
+                    <div class="w-12 h-12 bg-eco-50 dark:bg-eco-950 text-eco-600 dark:text-eco-400 rounded-2xl flex items-center justify-center mb-6">
+                        <i data-lucide="weight" class="w-6 h-6"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-3">Sensores IoT de Peso</h3>
+                    <p class="text-slate-600 dark:text-slate-350 leading-relaxed text-sm">
+                        Instalados en los contenedores, miden el peso y volumen en tiempo real. Si un contenedor está por debajo del umbral mínimo, el sistema lo omite automáticamente de la ruta diaria para evitar paradas innecesarias.
+                    </p>
+                </div>
+                <!-- Card 2 -->
+                <div class="bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-md transition">
+                    <div class="w-12 h-12 bg-eco-50 dark:bg-eco-950 text-eco-600 dark:text-eco-400 rounded-2xl flex items-center justify-center mb-6">
+                        <i data-lucide="wind" class="w-6 h-6"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-3">Sensores de Olor</h3>
+                    <p class="text-slate-600 dark:text-slate-350 leading-relaxed text-sm">
+                        Detectan picos de compuestos volátiles causados por materia orgánica en descomposición. Aunque el peso total sea bajo, un olor alto prioriza su recogida inmediata para mitigar malos olores y plagas.
+                    </p>
+                </div>
+                <!-- Card 3 -->
+                <div class="bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-md transition">
+                    <div class="w-12 h-12 bg-eco-50 dark:bg-eco-950 text-eco-600 dark:text-eco-400 rounded-2xl flex items-center justify-center mb-6">
+                        <i data-lucide="route" class="w-6 h-6"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-3">Enrutamiento Inteligente</h3>
+                    <p class="text-slate-600 dark:text-slate-350 leading-relaxed text-sm">
+                        Un algoritmo inteligente procesa los datos agregados para trazar la ruta de recogida más óptima en tiempo real. Esto reduce hasta un 35% las emisiones de CO₂ y el consumo de combustible.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- "FAD Juventud" Section -->
+        <div id="fad" class="bg-slate-900 dark:bg-slate-950 text-white py-24 relative overflow-hidden transition-colors duration-300">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+                <div class="lg:flex lg:items-center lg:justify-between gap-12">
+                    <div class="max-w-2xl">
+                        <span class="text-eco-400 font-bold tracking-wider uppercase text-sm block mb-2">Concurso FAD Juventud</span>
+                        <h2 class="text-3xl font-extrabold tracking-tight sm:text-4xl mb-6">
+                            Una respuesta joven a la crisis climática actual
+                        </h2>
+                        <p class="text-slate-400 leading-relaxed mb-6">
+                            smartEcoRoute nace bajo el amparo de la iniciativa juvenil para el desarrollo sostenible. Creemos firmemente que las nuevas generaciones no solo heredan los problemas ambientales, sino que también poseen el ingenio tecnológico para resolverlos.
+                        </p>
+                        <blockquote class="border-l-4 border-eco-500 pl-4 text-slate-300 italic mb-6">
+                            "Soluciones locales, digitales y de código abierto para transformar nuestras ciudades en entornos inteligentes verdaderamente sostenibles."
+                        </blockquote>
+                    </div>
+                    <div class="mt-10 lg:mt-0 bg-white/5 backdrop-blur-sm border border-white/10 p-8 rounded-3xl lg:max-w-md w-full">
+                        <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                            <i data-lucide="award" class="text-eco-400"></i> Impacto Tecnológico y Social
+                        </h3>
+                        <ul class="space-y-4 text-slate-300 text-sm">
+                            <li class="flex items-start gap-3">
+                                <i data-lucide="check" class="text-eco-400 w-5 h-5 shrink-0 mt-0.5"></i>
+                                <span><strong>Fomento de la Economía Circular:</strong> Optimización de recursos públicos escasos.</span>
+                            </li>
+                            <li class="flex items-start gap-3">
+                                <i data-lucide="check" class="text-eco-400 w-5 h-5 shrink-0 mt-0.5"></i>
+                                <span><strong>Salud Pública:</strong> Mitigación de malos olores y plagas urbanas de forma proactiva.</span>
+                            </li>
+                            <li class="flex items-start gap-3">
+                                <i data-lucide="check" class="text-eco-400 w-5 h-5 shrink-0 mt-0.5"></i>
+                                <span><strong>Código Abierto:</strong> Diseñado para ser replicable en municipios medianos y pequeños.</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <!-- Graphic background mesh -->
+            <div class="absolute top-1/2 right-0 -translate-y-1/2 w-96 h-96 bg-eco-600/10 rounded-full blur-3xl"></div>
+        </div>
+    </main>
+
+    <!-- SECTION 2: INTERACTIVE ADMIN DASHBOARD -->
+    <section id="dashboard" class="py-20 bg-slate-100 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 transition-colors duration-300">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            
+            <!-- Header Panel -->
+            <div class="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                    <h2 class="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">Panel de Control Operativo</h2>
+                    <p class="text-slate-600 dark:text-slate-400 text-sm">Simulador de enrutamiento y estado de sensores IoT en tiempo real.</p>
+                </div>
+                
+                <!-- Action Button -->
+                <div>
+                    <button 
+                        @click="recalculateRoute()"
+                        :disabled="isRecalculating"
+                        class="w-full md:w-auto bg-eco-600 hover:bg-eco-700 dark:bg-eco-600 dark:hover:bg-eco-500 text-white font-bold px-6 py-3.5 rounded-2xl shadow-md shadow-eco-600/10 transition flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <template x-if="!isRecalculating">
+                            <span class="flex items-center gap-2">
+                                <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                                <span>Simular Lectura de Sensores</span>
+                            </span>
+                        </template>
+                        <template x-if="isRecalculating">
+                            <span class="flex items-center gap-2">
+                                <svg class="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <span>Leyendo Sensores IoT...</span>
+                            </span>
+                        </template>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Workspace Layout (Sidebar + Core Content) -->
+            <div class="grid lg:grid-cols-12 gap-8 items-start">
+                
+                <!-- Sidebar Navigation -->
+                <aside class="lg:col-span-3 bg-white dark:bg-slate-950 p-4 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-1 transition-colors duration-300">
+                    <div class="px-3 py-2 text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Navegación</div>
+                    <button @click="currentTab = 'dashboard'" :class="currentTab === 'dashboard' ? 'bg-eco-50 dark:bg-eco-950 text-eco-700 dark:text-eco-400 font-bold' : 'text-slate-600 dark:text-slate-450 hover:bg-slate-50 dark:hover:bg-slate-900'" class="w-full flex items-center space-x-3 px-3 py-3 rounded-2xl transition text-sm">
+                        <i data-lucide="layout-grid" class="w-4 h-4"></i>
+                        <span>Vista General</span>
+                    </button>
+                    <button @click="currentTab = 'mapa'" :class="currentTab === 'mapa' ? 'bg-eco-50 dark:bg-eco-950 text-eco-700 dark:text-eco-400 font-bold' : 'text-slate-600 dark:text-slate-450 hover:bg-slate-50 dark:hover:bg-slate-900'" class="w-full flex items-center space-x-3 px-3 py-3 rounded-2xl transition text-sm">
+                        <i data-lucide="map" class="w-4 h-4"></i>
+                        <span>Mapa En Vivo</span>
+                    </button>
+                    <button @click="currentTab = 'analitica'" :class="currentTab === 'analitica' ? 'bg-eco-50 dark:bg-eco-950 text-eco-700 dark:text-eco-400 font-bold' : 'text-slate-600 dark:text-slate-450 hover:bg-slate-50 dark:hover:bg-slate-900'" class="w-full flex items-center space-x-3 px-3 py-3 rounded-2xl transition text-sm">
+                        <i data-lucide="bar-chart-3" class="w-4 h-4"></i>
+                        <span>Analítica Avanzada</span>
+                    </button>
+                    <div class="pt-4 border-t border-slate-100 dark:border-slate-900 mt-4">
+                        <div class="bg-slate-50 dark:bg-slate-900/40 p-4 rounded-2xl border border-slate-200/60 dark:border-slate-800 text-center">
+                            <span class="text-xs text-slate-500 dark:text-slate-400 block font-semibold">Estado de Red IoT</span>
+                            <span class="inline-flex items-center gap-1.5 text-xs font-bold text-eco-700 dark:text-eco-400 bg-eco-100 dark:bg-eco-950 px-3 py-1 rounded-full mt-2">
+                                <span class="w-1.5 h-1.5 rounded-full bg-eco-600 dark:bg-eco-400 animate-ping"></span>
+                                Online & Sincronizado
+                            </span>
+                        </div>
+                    </div>
+                </aside>
+
+                <!-- Core Dashboard Area -->
+                <div class="lg:col-span-9 space-y-6">
+                    
+                    <!-- Top Metrics Row -->
+                    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <!-- Metric 1 -->
+                        <div class="bg-white dark:bg-slate-950 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors duration-300">
+                            <div class="flex justify-between items-start mb-2">
+                                <span class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Ahorro Estimado</span>
+                                <span class="p-2 bg-eco-50 dark:bg-eco-950 text-eco-600 dark:text-eco-400 rounded-xl"><i data-lucide="fuel" class="w-4 h-4"></i></span>
+                            </div>
+                            <div class="flex items-baseline space-x-2">
+                                <span class="text-2xl font-black tracking-tight text-slate-900 dark:text-white" x-text="metrics.fuelSaved + '%'"></span>
+                                <span class="text-[10px] font-bold text-eco-600 dark:text-eco-400 bg-eco-100 dark:bg-eco-950 px-1.5 py-0.5 rounded">Ruta</span>
+                            </div>
+                        </div>
+                        <!-- Metric 2 -->
+                        <div class="bg-white dark:bg-slate-950 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors duration-300">
+                            <div class="flex justify-between items-start mb-2">
+                                <span class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">CO₂ Reducido</span>
+                                <span class="p-2 bg-sky-50 dark:bg-sky-950 text-sky-600 dark:text-sky-400 rounded-xl"><i data-lucide="cloud-snow" class="w-4 h-4"></i></span>
+                            </div>
+                            <div class="flex items-baseline space-x-2">
+                                <span class="text-2xl font-black tracking-tight text-slate-900 dark:text-white" x-text="metrics.co2Reduced + ' kg'"></span>
+                                <span class="text-[10px] font-bold text-sky-600 dark:text-sky-450 bg-sky-100 dark:bg-sky-950 px-1.5 py-0.5 rounded">Evitado</span>
+                            </div>
+                        </div>
+                        <!-- Metric 3 -->
+                        <div class="bg-white dark:bg-slate-950 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors duration-300">
+                            <div class="flex justify-between items-start mb-2">
+                                <span class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Puntos Críticos</span>
+                                <span class="p-2 bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400 rounded-xl"><i data-lucide="alert-triangle" class="w-4 h-4"></i></span>
+                            </div>
+                            <div class="flex items-baseline space-x-2">
+                                <span class="text-2xl font-black tracking-tight text-slate-900 dark:text-white" x-text="countPriorityBins()"></span>
+                                <span class="text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-950 px-1.5 py-0.5 rounded">Recogida urgente</span>
+                            </div>
+                        </div>
+                        <!-- Metric 4 -->
+                        <div class="bg-white dark:bg-slate-950 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors duration-300">
+                            <div class="flex justify-between items-start mb-2">
+                                <span class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Dispositivos</span>
+                                <span class="p-2 bg-purple-50 dark:bg-purple-950 text-purple-600 dark:text-purple-400 rounded-xl"><i data-lucide="radio" class="w-4 h-4"></i></span>
+                            </div>
+                            <div class="flex items-baseline space-x-2">
+                                <span class="text-2xl font-black tracking-tight text-slate-900 dark:text-white" x-text="getTotalBins()"></span>
+                                <span class="text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-purple-950 px-1.5 py-0.5 rounded">Activos</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Dynamic Zone Selector Tabs -->
+                    <div class="bg-white dark:bg-slate-950 p-2 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex space-x-2 transition-colors duration-300">
+                        <template x-for="zone in Object.keys(zonesData)" :key="zone">
+                            <button 
+                                @click="currentZone = zone"
+                                :class="currentZone === zone ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900'"
+                                class="flex-1 py-3 text-sm rounded-xl transition"
+                                x-text="zone">
+                            </button>
+                        </template>
+                    </div>
+
+                    <!-- TAB 1: VISTA GENERAL -->
+                    <div x-show="currentTab === 'dashboard'" class="space-y-6">
+                        <div class="grid lg:grid-cols-12 gap-6">
+                            
+                            <!-- Dynamic Table List -->
+                            <div class="lg:col-span-7 bg-white dark:bg-slate-950 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden transition-colors duration-300">
+                                <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-900 bg-slate-50/50 dark:bg-slate-900/20 flex justify-between items-center">
+                                    <h3 class="font-bold text-slate-900 dark:text-white flex items-center gap-2 text-sm sm:text-base">
+                                        <i data-lucide="list" class="w-4 h-4 text-slate-500"></i> Dispositivos en <span x-text="currentZone" class="text-eco-600 dark:text-eco-400"></span>
+                                    </h3>
+                                    <span class="text-xs font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-900 px-2.5 py-1 rounded-lg" x-text="zonesData[currentZone].length + ' sensores'"></span>
+                                </div>
+                                <div class="overflow-x-auto">
+                                    <table class="w-full text-left border-collapse text-sm">
+                                        <thead>
+                                            <tr class="bg-slate-50/70 dark:bg-slate-900/40 text-slate-400 dark:text-slate-500 font-bold border-b border-slate-100 dark:border-slate-900">
+                                                <th class="p-4 pl-6 text-xs uppercase tracking-wider">ID</th>
+                                                <th class="p-4 text-xs uppercase tracking-wider">Llenado</th>
+                                                <th class="p-4 text-xs uppercase tracking-wider">Olor</th>
+                                                <th class="p-4 text-xs uppercase tracking-wider">Estado</th>
+                                                <th class="p-4 pr-6 text-xs uppercase tracking-wider text-right">Acción</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <template x-for="bin in zonesData[currentZone]" :key="bin.id">
+                                                <tr class="border-b border-slate-100 dark:border-slate-900 hover:bg-slate-50/40 dark:hover:bg-slate-900/30 transition">
+                                                    <td class="p-4 pl-6 font-mono font-bold text-slate-700 dark:text-slate-300" x-text="bin.id"></td>
+                                                    <td class="p-4">
+                                                        <div class="flex items-center space-x-2">
+                                                            <div class="w-24 sm:w-28 bg-slate-100 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
+                                                                <div class="h-full rounded-full transition-all duration-500" 
+                                                                     :style="'width: ' + bin.fill + '%'"
+                                                                     :class="bin.fill > 75 ? 'bg-red-500' : (bin.fill > 40 ? 'bg-amber-500' : 'bg-emerald-500')">
+                                                                </div>
+                                                            </div>
+                                                            <span class="text-xs font-bold text-slate-600 dark:text-slate-400 w-8 text-right" x-text="bin.fill + '%'"></span>
+                                                        </div>
+                                                    </td>
+                                                    <td class="p-4">
+                                                        <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-bold"
+                                                              :class="bin.odor === 'Alto' ? 'bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400' : (bin.odor === 'Medio' ? 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400' : 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400')"
+                                                              x-text="bin.odor">
+                                                        </span>
+                                                    </td>
+                                                    <td class="p-4">
+                                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold"
+                                                              :class="bin.status === 'Prioridad' ? 'bg-red-100 dark:bg-red-950 text-red-800 dark:text-red-400' : (bin.status === 'Omitir' ? 'bg-slate-100 dark:bg-slate-900 text-slate-400 dark:text-slate-500' : 'bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-400')">
+                                                            <span class="w-1.5 h-1.5 rounded-full"
+                                                                  :class="bin.status === 'Prioridad' ? 'bg-red-600 dark:bg-red-400' : (bin.status === 'Omitir' ? 'bg-slate-400 dark:bg-slate-600' : 'bg-blue-600 dark:bg-blue-400')"></span>
+                                                            <span x-text="bin.status"></span>
+                                                        </span>
+                                                    </td>
+                                                    <td class="p-4 pr-6 text-right">
+                                                        <button @click="openEditor(bin, currentZone)" class="p-1.5 text-slate-500 dark:text-slate-400 hover:text-eco-600 dark:hover:text-eco-400 hover:bg-slate-100 dark:hover:bg-slate-900 rounded-xl transition" title="Configurar Sensores">
+                                                            <i data-lucide="sliders" class="w-4.5 h-4.5"></i>
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            </template>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Interactive Mini Map View -->
+                            <div class="lg:col-span-5 bg-white dark:bg-slate-950 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between transition-colors duration-300">
+                                <div>
+                                    <div class="flex justify-between items-center mb-4">
+                                        <h3 class="font-bold text-slate-900 dark:text-white flex items-center gap-2 text-sm sm:text-base">
+                                            <i data-lucide="map-pin" class="w-4 h-4 text-slate-500"></i> Vista Satelital de Ruta
+                                        </h3>
+                                        <span class="text-xs bg-eco-100 dark:bg-eco-950 text-eco-800 dark:text-eco-400 font-extrabold px-2.5 py-1 rounded-lg">Algoritmo Activo</span>
+                                    </div>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">Representación de la red y trazado optimizado en tiempo real para <span class="font-semibold text-slate-800 dark:text-slate-200" x-text="currentZone"></span>.</p>
+                                    
+                                    <!-- City Grid SVG Map -->
+                                    <div class="bg-slate-950 dark:bg-black rounded-2xl p-4 relative overflow-hidden aspect-video flex items-center justify-center border border-slate-800 shadow-inner">
+                                        <!-- Road Grid mesh lines -->
+                                        <div class="absolute inset-0 grid grid-cols-4 grid-rows-3 gap-4 p-4 opacity-10 pointer-events-none">
+                                            <template x-for="i in 12">
+                                                <div class="border border-white border-dashed rounded-xl"></div>
+                                            </template>
+                                        </div>
+
+                                        <!-- Dynamic Route SVG Path -->
+                                        <svg class="absolute inset-0 w-full h-full p-6" viewBox="0 0 450 220" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <!-- Standard connecting lane underlay -->
+                                            <path :d="getRoutePathD()" stroke="#ffffff" stroke-width="6" opacity="0.08" stroke-linecap="round" stroke-linejoin="round"/>
+                                            <!-- Optimized Active path -->
+                                            <path :d="getRoutePathD()" 
+                                                  stroke="#10b981" 
+                                                  stroke-width="3" 
+                                                  stroke-linecap="round" 
+                                                  stroke-linejoin="round"
+                                                  class="route-dash"
+                                                  id="routePath"/>
+                                        </svg>
+
+                                        <!-- Animated Truck traversing dynamic path -->
+                                        <div x-show="getRoutePathD() !== ''"
+                                             class="truck-container text-white bg-eco-500 rounded-full p-2 border border-slate-950 shadow-lg ring-4 ring-eco-500/20"
+                                             :style="'offset-path: path(\'' + getRoutePathD() + '\')'">
+                                            <i data-lucide="truck" class="w-4.5 h-4.5 text-white"></i>
+                                        </div>
+
+                                        <!-- Interactive Pins linked to Zone coordinates -->
+                                        <div class="absolute inset-0 p-6 pointer-events-none">
+                                            <template x-for="bin in zonesData[currentZone]" :key="bin.id">
+                                                <button @click="openEditor(bin, currentZone)"
+                                                     class="absolute w-8 h-8 rounded-full border-2 shadow-lg flex items-center justify-center font-mono text-[10px] font-bold text-white transition-all duration-300 pointer-events-auto cursor-pointer focus:outline-none hover:scale-115"
+                                                     :style="'left: ' + (coordinates[currentZone][bin.id].x - 16) + 'px; top: ' + (coordinates[currentZone][bin.id].y - 16) + 'px;'"
+                                                     :title="'Contenedor ' + bin.id + ' | Click para editar'"
+                                                     :class="bin.status === 'Prioridad' ? 'border-red-500 bg-red-950 ring-4 ring-red-500/35 scale-110' : (bin.status === 'Omitir' ? 'border-slate-700 bg-slate-800 opacity-40 hover:opacity-75' : 'border-blue-500 bg-blue-950 ring-4 ring-blue-500/10')">
+                                                    <span x-text="bin.id.split('-')[1]"></span>
+                                                </button>
+                                            </template>
+                                        </div>
+
+                                        <!-- Legend Overlay -->
+                                        <div class="absolute bottom-2 right-2 bg-slate-900/90 dark:bg-black/90 backdrop-blur-sm border border-slate-800 text-[9px] p-2 rounded-xl text-slate-400 space-y-1 select-none">
+                                            <div class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-red-500"></span> Prioridad</div>
+                                            <div class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span> Estándar</div>
+                                            <div class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span> Omitido</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="mt-6 pt-4 border-t border-slate-100 dark:border-slate-900 flex justify-between text-xs text-slate-500 dark:text-slate-400">
+                                    <span class="flex items-center gap-1"><i data-lucide="navigation" class="w-3.5 h-3.5 text-eco-600 dark:text-eco-400"></i> Recorriendo <strong class="text-slate-800 dark:text-white" x-text="countCollectedBins()"></strong> puntos</span>
+                                    <span class="flex items-center gap-1"><i data-lucide="ban" class="w-3.5 h-3.5 text-slate-400"></i> Omitiendo <strong class="text-slate-800 dark:text-white" x-text="countOmittedBins()"></strong> puntos</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- TAB 2: MAPA EN VIVO COMPLETO -->
+                    <div x-show="currentTab === 'mapa'" 
+                         x-transition:enter="transition ease-out duration-300"
+                         x-transition:enter-start="opacity-0 translate-y-4"
+                         x-transition:enter-end="opacity-100 translate-y-0"
+                         class="bg-white dark:bg-slate-950 p-8 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors duration-300" 
+                         x-cloak>
+                        <div class="flex justify-between items-center mb-6">
+                            <div>
+                                <h3 class="text-xl font-bold text-slate-900 dark:text-white">Consola de Mapeo Cartográfico</h3>
+                                <p class="text-xs text-slate-500 dark:text-slate-400">Trazado interactivo de coordenadas y simulación de recorrido vehicular.</p>
+                            </div>
+                            <span class="text-xs bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-400 font-bold px-3 py-1.5 rounded-xl flex items-center gap-1">
+                                <i data-lucide="navigation" class="w-3.5 h-3.5"></i>
+                                GPS Activo
+                            </span>
+                        </div>
+
+                        <!-- Full Screen Simulated Map Interface -->
+                        <div class="bg-slate-950 dark:bg-black rounded-3xl p-6 relative overflow-hidden border border-slate-800 shadow-inner flex flex-col justify-between min-h-[350px]">
+                            <!-- Grid Roads Overlay -->
+                            <div class="absolute inset-0 opacity-10 pointer-events-none" 
+                                 style="background-image: radial-gradient(circle, #ffffff 1px, transparent 1px); background-size: 24px 24px;"></div>
+                            
+                            <!-- Custom Roads Grid (Vector lines) -->
+                            <svg class="absolute inset-0 w-full h-full p-8" viewBox="0 0 500 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <!-- Main road grid lines -->
+                                <line x1="30" y1="100" x2="470" y2="100" stroke="#475569" stroke-width="2" opacity="0.3" stroke-dasharray="4 4"/>
+                                <line x1="120" y1="30" x2="120" y2="220" stroke="#475569" stroke-width="2" opacity="0.3" stroke-dasharray="4 4"/>
+                                <line x1="280" y1="30" x2="280" y2="220" stroke="#475569" stroke-width="2" opacity="0.3" stroke-dasharray="4 4"/>
+                                
+                                <!-- Active Dynamic Road Path -->
+                                <path :d="getRoutePathD()" stroke="#10b981" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" class="route-dash" />
+                            </svg>
+
+                            <!-- Truck moving vector -->
+                            <div x-show="getRoutePathD() !== ''"
+                                 class="truck-container text-white bg-eco-500 rounded-full p-2 border-2 border-slate-950 shadow-2xl ring-8 ring-eco-500/10"
+                                 :style="'offset-path: path(\'' + getRoutePathD() + '\')'">
+                                <i data-lucide="truck" class="w-5 h-5 text-white"></i>
+                            </div>
+
+                            <!-- Map coordinates dots -->
+                            <div class="absolute inset-0 p-8 pointer-events-none">
+                                <template x-for="bin in zonesData[currentZone]" :key="bin.id">
+                                    <div class="absolute"
+                                         :style="'left: ' + (coordinates[currentZone][bin.id].x - 16) + 'px; top: ' + (coordinates[currentZone][bin.id].y - 16) + 'px; pointer-events: auto;'">
+                                        <!-- Container Pin -->
+                                        <button @click="openEditor(bin, currentZone)"
+                                                class="w-8 h-8 rounded-full border-2 shadow-2xl flex items-center justify-center font-mono text-[10px] font-bold text-white transition-all duration-300 cursor-pointer focus:outline-none hover:scale-120"
+                                                :class="bin.status === 'Prioridad' ? 'border-red-500 bg-red-950 ring-4 ring-red-500/35 scale-110' : (bin.status === 'Omitir' ? 'border-slate-700 bg-slate-800 opacity-40 hover:opacity-80' : 'border-blue-500 bg-blue-950 ring-4 ring-blue-500/15')">
+                                            <span x-text="bin.id.split('-')[1]"></span>
+                                        </button>
+                                        <!-- Label (shows fill %) -->
+                                        <span class="absolute top-9 left-1/2 -translate-x-1/2 bg-slate-900/90 text-[8px] font-bold text-white px-1.5 py-0.5 rounded-md border border-slate-800 whitespace-nowrap"
+                                              x-text="bin.fill + '%'"></span>
+                                    </div>
+                                </template>
+                            </div>
+
+                            <!-- Dynamic Info Panel Overlay -->
+                            <div class="absolute top-4 left-4 bg-slate-900/95 backdrop-blur-md border border-slate-800 rounded-2xl p-4 text-xs space-y-2 text-slate-300 w-52 pointer-events-auto">
+                                <div class="font-bold text-white text-sm pb-1.5 border-b border-slate-800 flex justify-between items-center">
+                                    <span x-text="currentZone"></span>
+                                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span>Contenedores:</span>
+                                    <strong class="text-white" x-text="zonesData[currentZone].length"></strong>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span>Recogida Hoy:</span>
+                                    <strong class="text-eco-400" x-text="countCollectedBins()"></strong>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span>Omitidos:</span>
+                                    <strong class="text-slate-400" x-text="countOmittedBins()"></strong>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Footer actions for the map -->
+                        <div class="mt-6 flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50 dark:bg-slate-900/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-900">
+                            <span class="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                                <i data-lucide="info" class="w-4 h-4"></i>
+                                Haz clic en los nodos del mapa para abrir el panel de control del sensor IoT y alterar los valores simulados.
+                            </span>
+                            <button @click="currentTab = 'dashboard'" class="text-eco-600 dark:text-eco-400 font-bold hover:underline text-xs flex items-center gap-1">
+                                Volver al panel general <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- TAB 3: ANALÍTICA AVANZADA -->
+                    <div x-show="currentTab === 'analitica'" 
+                         x-transition:enter="transition ease-out duration-300"
+                         x-transition:enter-start="opacity-0 translate-y-4"
+                         x-transition:enter-end="opacity-100 translate-y-0"
+                         class="space-y-6" 
+                         x-cloak>
+                        
+                        <div class="bg-white dark:bg-slate-950 p-8 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors duration-300">
+                            <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-8">
+                                <div>
+                                    <h3 class="text-xl font-bold text-slate-900 dark:text-white">Rendimiento Histórico e Impacto Neto</h3>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400">Análisis y evolución agregada del impacto ambiental por enrutamiento inteligente.</p>
+                                </div>
+
+                                <!-- Time period toggle -->
+                                <div class="bg-slate-100 dark:bg-slate-900 p-1 rounded-xl flex space-x-1 self-start sm:self-auto border border-slate-200/50 dark:border-slate-800">
+                                    <button @click="analyticsPeriod = '7d'" 
+                                            :class="analyticsPeriod === '7d' ? 'bg-white dark:bg-slate-850 text-slate-900 dark:text-white font-bold shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900'"
+                                            class="px-3 py-1.5 text-xs rounded-lg transition">
+                                        Últimos 7 días
+                                    </button>
+                                    <button @click="analyticsPeriod = '30d'" 
+                                            :class="analyticsPeriod === '30d' ? 'bg-white dark:bg-slate-850 text-slate-900 dark:text-white font-bold shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900'"
+                                            class="px-3 py-1.5 text-xs rounded-lg transition">
+                                        Últimos 30 días
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="grid md:grid-cols-2 gap-8">
+                                <!-- CO2 Line Chart -->
+                                <div class="border border-slate-150 dark:border-slate-800 rounded-2xl p-6 bg-slate-50/50 dark:bg-slate-900/10">
+                                    <div class="flex justify-between items-center mb-4">
+                                        <h4 class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Ahorro de CO₂ Acumulado (kg)</h4>
+                                        <span class="text-xs font-extrabold text-eco-700 dark:text-eco-400 bg-eco-50 dark:bg-eco-950 px-2 py-0.5 rounded-lg" x-text="'+' + co2Data[analyticsPeriod].reduce((a,b)=>a+b, 0) + ' kg'"></span>
+                                    </div>
+
+                                    <!-- Line Chart via Dynamic SVG -->
+                                    <div class="relative w-full aspect-[5/2] bg-white dark:bg-slate-950 rounded-xl p-3 border border-slate-200/60 dark:border-slate-800 shadow-inner flex items-center justify-center transition-colors duration-300">
+                                        <svg class="w-full h-full" viewBox="0 0 500 180" xmlns="http://www.w3.org/2000/svg">
+                                            <defs>
+                                                <linearGradient id="greenGrad" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="0%" stop-color="#10b981" stop-opacity="0.25"/>
+                                                    <stop offset="100%" stop-color="#10b981" stop-opacity="0.00"/>
+                                                </linearGradient>
+                                            </defs>
+                                            
+                                            <!-- Horizontal Grid lines -->
+                                            <line x1="30" y1="30" x2="470" y2="30" stroke="#f1f5f9" class="dark:stroke-slate-900" stroke-width="1.5" />
+                                            <line x1="30" y1="80" x2="470" y2="80" stroke="#f1f5f9" class="dark:stroke-slate-900" stroke-width="1.5" />
+                                            <line x1="30" y1="130" x2="470" y2="130" stroke="#f1f5f9" class="dark:stroke-slate-900" stroke-width="1.5" />
+                                            
+                                            <!-- Chart Area Fill -->
+                                            <path :d="getLineChartPath().areaD" fill="url(#greenGrad)" class="transition-all duration-700" />
+                                            <!-- Chart Line -->
+                                            <path :d="getLineChartPath().pathD" fill="none" stroke="#10b981" stroke-width="3" stroke-linecap="round" class="transition-all duration-700" />
+                                        </svg>
+                                    </div>
+                                    <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-3 text-center">La gráfica muestra la cantidad de CO₂ que se ha dejado de emitir comparado con el modelo tradicional de recolección fija.</p>
+                                </div>
+
+                                <!-- Load Distribution Bar Chart -->
+                                <div class="border border-slate-150 dark:border-slate-800 rounded-2xl p-6 bg-slate-50/50 dark:bg-slate-900/10">
+                                    <div class="flex justify-between items-center mb-4">
+                                        <h4 class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Carga Promedio Actual por Zona (%)</h4>
+                                        <span class="text-xs font-extrabold text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950 px-2 py-0.5 rounded-lg">Tiempo Real</span>
+                                    </div>
+
+                                    <!-- Bar Chart via Dynamic SVG -->
+                                    <div class="relative w-full aspect-[5/2] bg-white dark:bg-slate-950 rounded-xl p-3 border border-slate-200/60 dark:border-slate-800 shadow-inner flex items-center justify-center transition-colors duration-300">
+                                        <svg class="w-full h-full" viewBox="0 0 400 180" xmlns="http://www.w3.org/2000/svg">
+                                            <!-- Grid levels -->
+                                            <line x1="30" y1="30" x2="370" y2="30" stroke="#f1f5f9" class="dark:stroke-slate-900" stroke-width="1.5"/>
+                                            <line x1="30" y1="90" x2="370" y2="90" stroke="#f1f5f9" class="dark:stroke-slate-900" stroke-width="1.5"/>
+                                            <line x1="30" y1="150" x2="370" y2="150" stroke="#f8fafc" class="dark:stroke-slate-900" stroke-width="2"/>
+                                            
+                                            <!-- Bar Centro -->
+                                            <rect x="65" :y="150 - getZoneAverages()['Zona Centro'] * 1.1" width="50" :height="getZoneAverages()['Zona Centro'] * 1.1" fill="#10b981" rx="6" class="transition-all duration-700"/>
+                                            <text x="90" :y="140 - getZoneAverages()['Zona Centro'] * 1.1" text-anchor="middle" fill="#475569" class="dark:fill-slate-400 font-bold text-[10px]" x-text="getZoneAverages()['Zona Centro'] + '%'"></text>
+                                            <text x="90" y="165" text-anchor="middle" fill="#64748b" class="font-bold text-[9px]">Centro</text>
+
+                                            <!-- Bar Norte -->
+                                            <rect x="175" :y="150 - getZoneAverages()['Zona Norte'] * 1.1" width="50" :height="getZoneAverages()['Zona Norte'] * 1.1" fill="#3b82f6" rx="6" class="transition-all duration-700"/>
+                                            <text x="200" :y="140 - getZoneAverages()['Zona Norte'] * 1.1" text-anchor="middle" fill="#475569" class="dark:fill-slate-400 font-bold text-[10px]" x-text="getZoneAverages()['Zona Norte'] + '%'"></text>
+                                            <text x="200" y="165" text-anchor="middle" fill="#64748b" class="font-bold text-[9px]">Norte</text>
+
+                                            <!-- Bar Sur -->
+                                            <rect x="285" :y="150 - getZoneAverages()['Zona Sur'] * 1.1" width="50" :height="getZoneAverages()['Zona Sur'] * 1.1" fill="#a855f7" rx="6" class="transition-all duration-700"/>
+                                            <text x="310" :y="140 - getZoneAverages()['Zona Sur'] * 1.1" text-anchor="middle" fill="#475569" class="dark:fill-slate-400 font-bold text-[10px]" x-text="getZoneAverages()['Zona Sur'] + '%'"></text>
+                                            <text x="310" y="165" text-anchor="middle" fill="#64748b" class="font-bold text-[9px]">Sur</text>
+                                        </svg>
+                                    </div>
+                                    <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-3 text-center">La distribución actual pondera los datos en vivo. Al editar contenedores, los promedios se recalculan de inmediato.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CONTAINER SENSOR IoT DRAWER (SLIDE PANELS / MODALS) -->
+    <div x-show="showEditor" 
+         class="fixed inset-0 z-50 overflow-hidden" 
+         aria-labelledby="slide-over-title" 
+         role="dialog" 
+         aria-modal="true"
+         x-cloak>
+        <div class="absolute inset-0 overflow-hidden">
+            <!-- Background Overlay dark mask -->
+            <div @click="showEditor = false" 
+                 x-show="showEditor"
+                 x-transition:enter="ease-in-out duration-300"
+                 x-transition:enter-start="opacity-0"
+                 x-transition:enter-end="opacity-100"
+                 x-transition:leave="ease-in-out duration-300"
+                 x-transition:leave-start="opacity-100"
+                 x-transition:leave-end="opacity-0"
+                 class="absolute inset-0 bg-slate-950/40 backdrop-blur-sm transition-opacity" 
+                 aria-hidden="true"></div>
+
+            <div class="pointer-events-none fixed inset-y-0 right-0 flex max-w-full pl-10">
+                <!-- Drawer content panel -->
+                <div x-show="showEditor"
+                     x-transition:enter="transform transition ease-in-out duration-300"
+                     x-transition:enter-start="translate-x-full"
+                     x-transition:enter-end="translate-x-0"
+                     x-transition:leave="transform transition ease-in-out duration-300"
+                     x-transition:leave-start="translate-x-0"
+                     x-transition:leave-end="translate-x-full"
+                     class="pointer-events-auto w-screen max-w-md">
+                    
+                    <div class="flex h-full flex-col bg-white dark:bg-slate-950 shadow-2xl border-l border-slate-100 dark:border-slate-900 transition-colors duration-300">
+                        <div class="flex-1 overflow-y-auto px-6 py-8">
+                            
+                            <!-- Header drawer -->
+                            <div class="flex items-start justify-between pb-6 border-b border-slate-100 dark:border-slate-900">
+                                <div class="flex items-center space-x-2">
+                                    <div class="p-2 bg-eco-100 dark:bg-eco-950 text-eco-700 dark:text-eco-400 rounded-xl">
+                                        <i data-lucide="sliders" class="w-5 h-5"></i>
+                                    </div>
+                                    <div>
+                                        <h2 class="text-lg font-bold text-slate-900 dark:text-white" id="slide-over-title">
+                                            Calibrar Dispositivo IoT
+                                        </h2>
+                                        <p class="text-xs text-slate-500 dark:text-slate-400" x-text="'ID: ' + editingBin.id + ' | ' + editingBin.zone"></p>
+                                    </div>
+                                </div>
+                                <button @click="showEditor = false" class="text-slate-400 hover:text-slate-500 dark:hover:text-slate-350 p-1.5 hover:bg-slate-100 dark:hover:bg-slate-900 rounded-lg transition">
+                                    <i data-lucide="x" class="w-5 h-5"></i>
+                                </button>
+                            </div>
+
+                            <!-- Sensor settings form panel -->
+                            <div class="space-y-8 mt-8">
+                                
+                                <!-- Weight/Fill Slider Sensor -->
+                                <div class="space-y-3">
+                                    <div class="flex justify-between items-center text-sm">
+                                        <span class="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                                            <i data-lucide="weight" class="w-4 h-4 text-slate-400"></i>
+                                            Sensor de Llenado (%)
+                                        </span>
+                                        <span class="font-mono font-bold text-xs bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 px-2.5 py-1 rounded-lg"
+                                              :class="editingBin.fill > 75 ? 'text-red-600 dark:text-red-400' : (editingBin.fill > 40 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400')"
+                                              x-text="editingBin.fill + '%'"></span>
+                                    </div>
+                                    <div class="relative bg-slate-50 dark:bg-slate-900/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-900">
+                                        <input type="range" min="0" max="100" 
+                                               x-model="editingBin.fill" 
+                                               class="w-full h-2 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-eco-600">
+                                        <div class="flex justify-between text-[10px] text-slate-400 mt-2 font-medium">
+                                            <span>Vacío (0%)</span>
+                                            <span>Mitad (50%)</span>
+                                            <span>Crítico (100%)</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Compound Odor sensor -->
+                                <div class="space-y-3">
+                                    <label class="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                                        <i data-lucide="wind" class="w-4 h-4 text-slate-400"></i>
+                                        Sensor de Compuestos Volátiles (Olor)
+                                    </label>
+                                    <div class="grid grid-cols-3 gap-3 bg-slate-50 dark:bg-slate-900/50 p-2.5 rounded-2xl border border-slate-100 dark:border-slate-900">
+                                        <!-- Bajo -->
+                                        <label class="cursor-pointer">
+                                            <input type="radio" name="odor" value="Bajo" x-model="editingBin.odor" class="sr-only peer">
+                                            <div class="peer-checked:bg-emerald-500 peer-checked:text-white text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-900/80 peer-checked:font-bold text-xs py-3 text-center rounded-xl transition border border-slate-200/40 dark:border-slate-800/20">
+                                                Bajo
+                                            </div>
+                                        </label>
+                                        <!-- Medio -->
+                                        <label class="cursor-pointer">
+                                            <input type="radio" name="odor" value="Medio" x-model="editingBin.odor" class="sr-only peer">
+                                            <div class="peer-checked:bg-amber-500 peer-checked:text-white text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-900/80 peer-checked:font-bold text-xs py-3 text-center rounded-xl transition border border-slate-200/40 dark:border-slate-800/20">
+                                                Medio
+                                            </div>
+                                        </label>
+                                        <!-- Alto -->
+                                        <label class="cursor-pointer">
+                                            <input type="radio" name="odor" value="Alto" x-model="editingBin.odor" class="sr-only peer">
+                                            <div class="peer-checked:bg-red-500 peer-checked:text-white text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-900/80 peer-checked:font-bold text-xs py-3 text-center rounded-xl transition border border-slate-200/40 dark:border-slate-800/20">
+                                                Alto
+                                            </div>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <!-- Explanation note -->
+                                <div class="bg-blue-50/60 dark:bg-blue-950/20 p-4 rounded-2xl border border-blue-100/50 dark:border-blue-900/30 text-xs text-blue-800 dark:text-blue-400 leading-relaxed flex items-start gap-2.5">
+                                    <i data-lucide="info" class="w-4.5 h-4.5 shrink-0 mt-0.5"></i>
+                                    <span>
+                                        <strong>Regla Algorítmica:</strong> Si el llenado supera el <strong>75%</strong> o el sensor de compuestos orgánicos (olor) marca <strong>Alto</strong>, el contenedor pasará a estado de <strong>Prioridad</strong>. Si el llenado es inferior al <strong>25%</strong> y no tiene olor, se marcará como <strong>Omitir</strong> para eficientar la ruta.
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Actions drawer footer -->
+                        <div class="border-t border-slate-100 dark:border-slate-900 p-6 bg-slate-50/70 dark:bg-slate-950/70 flex gap-4 transition-colors duration-300">
+                            <button @click="showEditor = false" type="button" class="flex-1 py-3 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-100 dark:hover:bg-slate-900 transition text-sm">
+                                Cancelar
+                            </button>
+                            <button @click="saveBinChanges()" type="button" class="flex-1 py-3 bg-eco-600 hover:bg-eco-700 dark:bg-eco-600 dark:hover:bg-eco-500 text-white font-bold rounded-xl transition text-sm shadow-md shadow-eco-600/10">
+                                Guardar Cambios
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="bg-white dark:bg-slate-950 border-t border-slate-200 dark:border-slate-900 py-12 text-center text-sm text-slate-500 dark:text-slate-400 transition-colors duration-300">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4">
+            <p class="font-bold text-slate-700 dark:text-slate-300">smartEcoRoute &copy; 2026</p>
+            <p>Proyecto Tecnológico Desarrollado para el Certamen Nacional de Sostenibilidad Urbana - FAD Juventud.</p>
+        </div>
+    </footer>
+
+    <!-- App State and Simulation Logic Script -->
+    <script>
+        function smartEcoRouteApp() {
+            return {
+                currentTab: 'dashboard',
+                currentZone: 'Zona Centro',
+                isRecalculating: false,
+                darkMode: false,
+                showToast: false,
+                toastMessage: '',
+                showEditor: false,
+                editingBin: { id: '', fill: 0, odor: 'Bajo', zone: '' },
+                analyticsPeriod: '7d',
+                metrics: {
+                    fuelSaved: 34.2,
+                    co2Reduced: 1240,
+                },
+                co2Data: {
+                    '7d': [120, 150, 130, 180, 210, 190, 240],
+                    '30d': [100, 110, 95, 120, 130, 125, 140, 150, 135, 160, 155, 170, 180, 165, 190, 210, 200, 220, 215, 230, 240, 225, 250, 270, 260, 280, 290, 275, 310, 325]
+                },
+                coordinates: {
+                    'Zona Centro': {
+                        'CONT-01': { x: 70, y: 50 },
+                        'CONT-02': { x: 150, y: 150 },
+                        'CONT-03': { x: 230, y: 60 },
+                        'CONT-04': { x: 310, y: 160 },
+                        'CONT-05': { x: 380, y: 80 }
+                    },
+                    'Zona Norte': {
+                        'CONT-06': { x: 60, y: 80 },
+                        'CONT-07': { x: 140, y: 160 },
+                        'CONT-08': { x: 220, y: 50 },
+                        'CONT-09': { x: 300, y: 130 },
+                        'CONT-10': { x: 370, y: 60 }
+                    },
+                    'Zona Sur': {
+                        'CONT-11': { x: 80, y: 140 },
+                        'CONT-12': { x: 160, y: 60 },
+                        'CONT-13': { x: 240, y: 150 },
+                        'CONT-14': { x: 310, y: 70 },
+                        'CONT-15': { x: 380, y: 140 }
+                    }
+                },
+                zonesData: {
+                    'Zona Centro': [
+                        { id: 'CONT-01', fill: 88, odor: 'Alto', status: 'Prioridad' },
+                        { id: 'CONT-02', fill: 12, odor: 'Bajo', status: 'Omitir' },
+                        { id: 'CONT-03', fill: 55, odor: 'Medio', status: 'Estándar' },
+                        { id: 'CONT-04', fill: 92, odor: 'Alto', status: 'Prioridad' },
+                        { id: 'CONT-05', fill: 20, odor: 'Bajo', status: 'Omitir' }
+                    ],
+                    'Zona Norte': [
+                        { id: 'CONT-06', fill: 15, odor: 'Bajo', status: 'Omitir' },
+                        { id: 'CONT-07', fill: 78, odor: 'Alto', status: 'Prioridad' },
+                        { id: 'CONT-08', fill: 45, odor: 'Bajo', status: 'Estándar' },
+                        { id: 'CONT-09', fill: 30, odor: 'Medio', status: 'Estándar' },
+                        { id: 'CONT-10', fill: 95, odor: 'Alto', status: 'Prioridad' }
+                    ],
+                    'Zona Sur': [
+                        { id: 'CONT-11', fill: 90, odor: 'Alto', status: 'Prioridad' },
+                        { id: 'CONT-12', fill: 85, odor: 'Alto', status: 'Prioridad' },
+                        { id: 'CONT-13', fill: 10, odor: 'Bajo', status: 'Omitir' },
+                        { id: 'CONT-14', fill: 60, odor: 'Medio', status: 'Estándar' },
+                        { id: 'CONT-15', fill: 5,  odor: 'Bajo', status: 'Omitir' }
+                    ]
+                },
+                
+                // Methods
+                toggleDarkMode() {
+                    this.darkMode = !this.darkMode;
+                    localStorage.setItem('darkMode', this.darkMode ? 'enabled' : 'disabled');
+                    this.applyDarkMode();
+                },
+                applyDarkMode() {
+                    if (this.darkMode) {
+                        document.documentElement.classList.add('dark');
+                    } else {
+                        document.documentElement.classList.remove('dark');
+                    }
+                },
+                triggerToast(message) {
+                    this.toastMessage = message;
+                    this.showToast = true;
+                    setTimeout(() => {
+                        this.showToast = false;
+                    }, 3000);
+                },
+                openEditor(bin, zone) {
+                    this.editingBin = { ...bin, zone };
+                    this.showEditor = true;
+                },
+                saveBinChanges() {
+                    const zone = this.editingBin.zone;
+                    const index = this.zonesData[zone].findIndex(b => b.id === this.editingBin.id);
+                    if (index !== -1) {
+                        const bin = this.zonesData[zone][index];
+                        bin.fill = parseInt(this.editingBin.fill);
+                        bin.odor = this.editingBin.odor;
+                        
+                        // Rule engine configuration
+                        if (bin.fill > 75 || bin.odor === 'Alto') {
+                            bin.status = 'Prioridad';
+                        } else if (bin.fill < 25 && bin.odor === 'Bajo') {
+                            bin.status = 'Omitir';
+                        } else {
+                            bin.status = 'Estándar';
+                        }
+                        
+                        this.triggerToast(`Contenedor ${bin.id} calibrado y guardado.`);
+                    }
+                    this.showEditor = false;
+                    this.updateMetrics();
+                    setTimeout(() => lucide.createIcons(), 50);
+                },
+                updateMetrics() {
+                    const totalPriority = this.countPriorityBins();
+                    this.metrics.fuelSaved = (35 + (5 - totalPriority) * 2 + Math.random() * 2).toFixed(1);
+                },
+                getRoutePathD() {
+                    const zoneBins = this.zonesData[this.currentZone];
+                    const coords = this.coordinates[this.currentZone];
+                    
+                    const activePoints = zoneBins
+                        .filter(b => b.status !== 'Omitir')
+                        .map(b => ({ id: b.id, x: coords[b.id].x, y: coords[b.id].y }))
+                        .filter(Boolean);
+                    
+                    if (activePoints.length === 0) return "";
+                    
+                    // Sort active points left to right to build route mapping
+                    activePoints.sort((a, b) => a.x - b.x);
+                    
+                    let d = "M 30 100"; // Depot point
+                    activePoints.forEach(p => {
+                        d += ` L ${p.x} ${p.y}`;
+                    });
+                    d += " L 420 100"; // End point
+                    return d;
+                },
+                getTotalBins() {
+                    return Object.values(this.zonesData).flat().length;
+                },
+                countPriorityBins() {
+                    return Object.values(this.zonesData).flat().filter(b => b.status === 'Prioridad').length;
+                },
+                countOmittedBins() {
+                    return this.zonesData[this.currentZone].filter(b => b.status === 'Omitir').length;
+                },
+                countCollectedBins() {
+                    return this.zonesData[this.currentZone].filter(b => b.status !== 'Omitir').length;
+                },
+                getZoneAverages() {
+                    const avgs = {};
+                    Object.keys(this.zonesData).forEach(zone => {
+                        const bins = this.zonesData[zone];
+                        const sum = bins.reduce((acc, bin) => acc + bin.fill, 0);
+                        avgs[zone] = Math.round(sum / bins.length);
+                    });
+                    return avgs;
+                },
+                getLineChartPath() {
+                    const data = this.co2Data[this.analyticsPeriod];
+                    const maxVal = Math.max(...data) * 1.1;
+                    const minVal = 0;
+                    const width = 500;
+                    const height = 180;
+                    const padding = 30;
+                    const pointsCount = data.length;
+                    
+                    let pathD = "";
+                    let areaD = "";
+                    
+                    data.forEach((val, i) => {
+                        const x = padding + (i / (pointsCount - 1)) * (width - 2 * padding);
+                        const y = height - padding - ((val - minVal) / (maxVal - minVal)) * (height - 2 * padding);
+                        if (i === 0) {
+                            pathD = `M ${x} ${y}`;
+                            areaD = `M ${x} ${height - padding} L ${x} ${y}`;
+                        } else {
+                            pathD += ` L ${x} ${y}`;
+                            areaD += ` L ${x} ${y}`;
+                        }
+                        if (i === pointsCount - 1) {
+                            areaD += ` L ${x} ${height - padding} Z`;
+                        }
+                    });
+                    
+                    return { pathD, areaD };
+                },
+                recalculateRoute() {
+                    this.isRecalculating = true;
+                    
+                    setTimeout(() => {
+                        Object.keys(this.zonesData).forEach(zone => {
+                            this.zonesData[zone].forEach(bin => {
+                                const newFill = Math.floor(Math.random() * 101);
+                                bin.fill = newFill;
+                                
+                                const odors = ['Bajo', 'Medio', 'Alto'];
+                                bin.odor = odors[Math.floor(Math.random() * odors.length)];
+                                
+                                if (bin.fill > 75 || bin.odor === 'Alto') {
+                                    bin.status = 'Prioridad';
+                                } else if (bin.fill < 25 && bin.odor === 'Bajo') {
+                                    bin.status = 'Omitir';
+                                } else {
+                                    bin.status = 'Estándar';
+                                }
+                            });
+                        });
+
+                        this.metrics.fuelSaved = (30 + Math.random() * 10).toFixed(1);
+                        this.metrics.co2Reduced += Math.floor(Math.random() * 20) + 10;
+                        
+                        // Add some variance to historical chart simulation
+                        this.co2Data['7d'] = this.co2Data['7d'].map(v => v + Math.floor(Math.random() * 10) - 3);
+                        
+                        this.isRecalculating = false;
+                        this.triggerToast("Sensores leídos de forma remota. Ruta recalculada.");
+                        setTimeout(() => lucide.createIcons(), 50);
+                    }, 1500);
+                },
+                init() {
+                    // Check local storage for dark mode preference
+                    this.darkMode = localStorage.getItem('darkMode') === 'enabled' || (!('darkMode' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches);
+                    this.applyDarkMode();
+                    lucide.createIcons();
+                }
+            }
+        }
+    </script>
+</body>
+</html>
